@@ -21,7 +21,7 @@ resource "aws_security_group" "terraform_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["194.183.171.45/32", "16.171.112.167/32"]
+    cidr_blocks = ["194.183.171.45/32", "16.171.112.167/32", "0.0.0.0/0"]
   }
 
   ingress {
@@ -68,20 +68,32 @@ resource "aws_instance" "web_server" {
   connection {
     type        = "ssh"
     user        = "ubuntu"
-    private_key = file("~/ssh.pem")
+    private_key = file("/home/ubuntu/ssh.pem")
     host        = aws_instance.web_server.public_ip
-  }
-
-  provisioner "local-exec" {
-    command = "echo 'Public IP: ${aws_instance.web_server.public_ip}'"
   }
 }
 
+output "ec2_ip" {
+  value = aws_instance.web_server.public_ip
+}
 
+resource "random_password" "example" {
+  length           = 16
+  special          = true
+  override_special = "!@#$%^&*()_+[]{}|"
+}
 
+resource "aws_secretsmanager_secret" "my-secret" {
+  name = "my-secret"
+}
 
+resource "aws_secretsmanager_secret_version" "my-secret-version" {
+  secret_id     = aws_secretsmanager_secret.my-secret.id
+  secret_string = random_password.example.result
+}
 
+data "aws_caller_identity" "current" {}
 
-
-
-
+output "caller_username" {
+  value = basename(data.aws_caller_identity.current.arn)
+}
