@@ -1,34 +1,29 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.22.0"
-    }
-  }
+provider "aws" {
+  region = var.region
+}
 
-  backend "s3" {
-    bucket         = "mutant-remote-state"
-    key            = "state/terraform.tfstate"
-    region         = "eu-north-1"
-    encrypt        = true
-    dynamodb_table = "tf_lockid"
+data "aws_subnet" "a" {
+  tags = {
+    Name = "a-public-subnet"
   }
 }
 
-provider "aws" {
-  region = "eu-north-1"
+data "aws_subnet" "b" {
+  tags = {
+    Name = "b-public-subnet"
+  }
 }
 
 resource "aws_lb" "my_alb" {
-  name    = "my-alb"
-  subnets = [var.public_a, var.public_b]
+  name    = var.my_app
+  subnets = [data.aws_subnet.a.id, data.aws_subnet.b.id]
 }
 
 resource "aws_lb_target_group" "my_alb_tg" {
-  name     = "my-alb-tg"
+  name     = var.my_app
   port     = 80
   protocol = "HTTP"
-  vpc_id   = var.vpc_id
+  vpc_id   = data.aws_subnet.a.vpc_id
 }
 
 resource "aws_lb_listener" "front_end" {
@@ -44,17 +39,17 @@ resource "aws_lb_listener" "front_end" {
 
 # Create a new ALB Target Group attachment
 resource "aws_autoscaling_attachment" "asg_attachment" {
-  autoscaling_group_name = "my-asg"
+  autoscaling_group_name = "my_asg"
   lb_target_group_arn    = aws_lb_target_group.my_alb_tg.arn
 }
 
 import {
   to = aws_db_instance.my_db
-  id = "my-db"
+  id = "my_db"
 }
 
 resource "aws_db_instance" "my_db" {
-  instance_class    = "db.t3.micro"
-  storage_encrypted = true
+  instance_class      = "db.t3.micro"
+  storage_encrypted   = true
   skip_final_snapshot = true
 }
